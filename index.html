@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Solana Seeker Snake Game</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        
+        .game-wrapper {
+            background: rgba(0,0,0,0.8);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        .game-container {
+            text-align: center;
+        }
+        
+        h1 {
+            color: #00ff88;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-shadow: 0 0 10px rgba(0,255,136,0.5);
+        }
+        
+        .wallet-section {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+        
+        #wallet-status {
+            color: #fff;
+            font-size: 12px;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+        
+        .btn-wallet {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn-wallet:active {
+            transform: scale(0.95);
+        }
+        
+        canvas {
+            border: 3px solid #00ff88;
+            border-radius: 10px;
+            background: #0a0a0a;
+            display: block;
+            margin: 0 auto;
+            cursor: pointer;
+        }
+        
+        .score-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 10px;
+        }
+        
+        .score-box {
+            color: #00ff88;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .score-label {
+            color: #888;
+            font-size: 12px;
+            margin-right: 10px;
+        }
+        
+        .btn-restart {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn-restart:active {
+            transform: scale(0.95);
+        }
+        
+        .instructions {
+            margin-top: 15px;
+            color: #888;
+            font-size: 12px;
+            text-align: center;
+        }
+        
+        @media (max-width: 500px) {
+            .game-wrapper {
+                padding: 10px;
+            }
+            canvas {
+                width: 100%;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div class="game-container">
+            <h1>🐍 SOL SNAKE</h1>
+            
+            <div class="wallet-section">
+                <div id="wallet-status">🔴 Wallet: Not Connected</div>
+                <button class="btn-wallet" id="connect-wallet">Connect Wallet</button>
+            </div>
+            
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+            
+            <div class="score-panel">
+                <div>
+                    <span class="score-label">SCORE</span>
+                    <span class="score-box" id="score">0</span>
+                </div>
+                <button class="btn-restart" id="restart-btn">🔄 Restart</button>
+            </div>
+            
+            <div class="instructions">
+                👆 Swipe or use arrow keys | 🍎 Eat food to grow | 💰 High score wins SOL
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Game Configuration
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        
+        const GRID_SIZE = 20;
+        const CELL_SIZE = canvas.width / GRID_SIZE;
+        
+        let snake = [{x: 10, y: 10}];
+        let direction = 'RIGHT';
+        let nextDirection = 'RIGHT';
+        let food = {};
+        let score = 0;
+        let gameRunning = true;
+        let gameInterval;
+        
+        // Initialize game
+        function init() {
+            snake = [{x: 10, y: 10}];
+            direction = 'RIGHT';
+            nextDirection = 'RIGHT';
+            score = 0;
+            scoreElement.textContent = score;
+            generateFood();
+            draw();
+        }
+        
+        // Generate random food position
+        function generateFood() {
+            do {
+                food = {
+                    x: Math.floor(Math.random() * GRID_SIZE),
+                    y: Math.floor(Math.random() * GRID_SIZE)
+                };
+            } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
+        }
+        
+        // Draw everything
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(canvas.width, i * CELL_SIZE);
+                ctx.stroke();
+            }
+            
+            // Draw snake
+            snake.forEach((segment, index) => {
+                const gradient = ctx.createLinearGradient(
+                    segment.x * CELL_SIZE, 
+                    segment.y * CELL_SIZE,
+                    (segment.x + 1) * CELL_SIZE,
+                    (segment.y + 1) * CELL_SIZE
+                );
+                if (index === 0) {
+                    gradient.addColorStop(0, '#00ff88');
+                    gradient.addColorStop(1, '#00cc66');
+                } else {
+                    gradient.addColorStop(0, '#33ff99');
+                    gradient.addColorStop(1, '#00ff88');
+                }
+                ctx.fillStyle = gradient;
+                ctx.fillRect(
+                    segment.x * CELL_SIZE + 1,
+                    segment.y * CELL_SIZE + 1,
+                    CELL_SIZE - 2,
+                    CELL_SIZE - 2
+                );
+                
+                // Draw eyes on head
+                if (index === 0) {
+                    ctx.fillStyle = 'white';
+                    const eyeSize = CELL_SIZE / 6;
+                    if (direction === 'RIGHT') {
+                        ctx.fillRect(segment.x * CELL_SIZE + CELL_SIZE - eyeSize * 2, segment.y * CELL_SIZE + eyeSize, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x * CELL_SIZE + CELL_SIZE - eyeSize * 2, segment.y * CELL_SIZE + CELL_SIZE - eyeSize * 2, eyeSize, eyeSize);
+                    } else if (direction === 'LEFT') {
+                        ctx.fillRect(segment.x * CELL_SIZE + eyeSize, segment.y * CELL_SIZE + eyeSize, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x * CELL_SIZE + eyeSize, segment.y * CELL_SIZE + CELL_SIZE - eyeSize * 2, eyeSize, eyeSize);
+                    } else if (direction === 'UP') {
+                        ctx.fillRect(segment.x * CELL_SIZE + eyeSize, segment.y * CELL_SIZE + eyeSize, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x * CELL_SIZE + CELL_SIZE - eyeSize * 2, segment.y * CELL_SIZE + eyeSize, eyeSize, eyeSize);
+                    } else {
+                        ctx.fillRect(segment.x * CELL_SIZE + eyeSize, segment.y * CELL_SIZE + CELL_SIZE - eyeSize * 2, eyeSize, eyeSize);
+                        ctx.fillRect(segment.x * CELL_SIZE + CELL_SIZE - eyeSize * 2, segment.y * CELL_SIZE + CELL_SIZE - eyeSize * 2, eyeSize, eyeSize);
+                    }
+                }
+            });
+            
+            // Draw food
+            ctx.fillStyle = '#ff4444';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#ff4444';
+            ctx.fillRect(
+                food.x * CELL_SIZE + 2,
+                food.y * CELL_SIZE + 2,
+                CELL_SIZE - 4,
+                CELL_SIZE - 4
+            );
+            ctx.shadowBlur = 0;
+        }
+        
+        // Update game state
+        function update() {
+            if (!gameRunning) return;
+            
+            direction = nextDirection;
+            
+            // Calculate new head
+            let newHead = { ...snake[0] };
+            switch(direction) {
+                case 'RIGHT': newHead.x++; break;
+                case 'LEFT': newHead.x--; break;
+                case 'UP': newHead.y--; break;
+                case 'DOWN': newHead.y++; break;
+            }
+            
+            // Check collision with food
+            if (newHead.x === food.x && newHead.y === food.y) {
+                score += 10;
+                scoreElement.textContent = score;
+                snake.unshift(newHead);
+                generateFood();
+            } else {
+                snake.unshift(newHead);
+                snake.pop();
+            }
+            
+            // Check wall collision
+            if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
+                gameOver();
+                return;
+            }
+            
+            // Check self collision
+            if (snake.slice(1).some(segment => segment.x === newHead.x && segment.y === newHead.y)) {
+                gameOver();
+                return;
+            }
+            
+            draw();
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(gameInterval);
+            alert(`🎮 Game Over!\n📊 Your Score: ${score}\n🔥 Try again to beat your high score!`);
+            init();
+            gameRunning = true;
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(update, 100);
+        }
+        
+        function restartGame() {
+            if (gameInterval) clearInterval(gameInterval);
+            init();
+            gameRunning = true;
+            gameInterval = setInterval(update, 100);
+        }
+        
+        // Touch controls for mobile
+        let touchStart = null;
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            touchStart = {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (!touchStart) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const touchEnd = {
+                x: e.changedTouches[0].clientX - rect.left,
+                y: e.changedTouches[0].clientY - rect.top
+            };
+            
+            const dx = touchEnd.x - touchStart.x;
+            const dy = touchEnd.y - touchStart.y;
+            
+            if (Math.abs(dx) > Math.abs(dy)) {
+                if (dx > 0 && direction !== 'LEFT') nextDirection = 'RIGHT';
+                else if (dx < 0 && direction !== 'RIGHT') nextDirection = 'LEFT';
+            } else {
+                if (dy > 0 && direction !== 'UP') nextDirection = 'DOWN';
+                else if (dy < 0 && direction !== 'DOWN') nextDirection = 'UP';
+            }
+            
+            touchStart = null;
+        });
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp': if (direction !== 'DOWN') nextDirection = 'UP'; break;
+                case 'ArrowDown': if (direction !== 'UP') nextDirection = 'DOWN'; break;
+                case 'ArrowLeft': if (direction !== 'RIGHT') nextDirection = 'LEFT'; break;
+                case 'ArrowRight': if (direction !== 'LEFT') nextDirection = 'RIGHT'; break;
+            }
+        });
+        
+        // Wallet connection (Mobile Wallet Adapter ready)
+        let walletConnected = false;
+        document.getElementById('connect-wallet').addEventListener('click', async () => {
+            const statusDiv = document.getElementById('wallet-status');
+            const btn = document.getElementById('connect-wallet');
+            
+            try {
+                // This will work with Solana Mobile Wallet Adapter on Seeker
+                if (window.solana && window.solana.isMobileWalletAdapter) {
+                    await window.solana.connect();
+                    const publicKey = window.solana.publicKey.toString();
+                    statusDiv.innerHTML = `🟢 Wallet: ${publicKey.slice(0, 6)}...${publicKey.slice(-4)}`;
+                    btn.textContent = 'Connected ✅';
+                    btn.disabled = true;
+                    walletConnected = true;
+                } else {
+                    // Demo mode for testing
+                    statusDiv.innerHTML = `🟡 Wallet: Demo Mode (Testing)`;
+                    btn.textContent = 'Demo Mode Active';
+                    walletConnected = true;
+                }
+            } catch (error) {
+                console.error('Wallet connection error:', error);
+                statusDiv.innerHTML = `🔴 Connection failed. Please install Solana Mobile Wallet.`;
+            }
+        });
+        
+        document.getElementById('restart-btn').addEventListener('click', restartGame);
+        
+        // Start the game
+        init();
+        gameInterval = setInterval(update, 100);
+    </script>
+</body>
+</html>
